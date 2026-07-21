@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Instant CMA - Boston Comparative Market Analysis">
+<meta name="theme-color" content="#0B1A12">
+<title>Instant CMA | Boston Property Valuation</title>
+<link rel="manifest" href="data:application/json,{%22name%22:%22Instant%20CMA%22,%22short_name%22:%22CMA%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230B1A12%22,%22theme_color%22:%22%230B1A12%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230B1A12' width='100' height='100' rx='20'/%3E<text x='50' y='68' font-size='50' text-anchor='middle' fill='%23D4A843'>🏠</text></svg>%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+<style>
+  :root {
+    --bg: #0B1A12;
+    --bg-elevated: #12281E;
+    --fg: #E8F5EE;
+    --muted: #8AB8A0;
+    --accent: #D4A843;
+    --accent-dim: #B89038;
+    --emerald: #4CAF7A;
+    --emerald-dim: #3D8B62;
+    --card: #162D22;
+    --border: #2A4A3A;
+    --error: #E57373;
+    --shadow: rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .app-header {
+    background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-content {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--emerald) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+  }
+  .app-title { font-weight: 700; font-size: 1.125rem; letter-spacing: -0.02em; }
+  .app-subtitle { font-size: 0.75rem; color: var(--muted); font-weight: 400; }
+  main { flex: 1; padding: 1.5rem 1rem; max-width: 720px; margin: 0 auto; width: 100%; }
+  .hero {
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+  .hero h1 { font-size: clamp(1.75rem, 5vw, 2.5rem); font-weight: 800; line-height: 1.1; margin-bottom: 0.5rem; background: linear-gradient(90deg, var(--fg) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { color: var(--muted); font-size: 1.1rem; max-width: 480px; margin: 0 auto; }
+  .search-form {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+  .input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  .input-row { display: flex; gap: 0.75rem; }
+  @media (max-width: 480px) { .input-row { flex-direction: column; } }
+  label { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  input, select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.875rem 1rem;
+    color: var(--fg);
+    font-size: 1rem;
+    font-family: inherit;
+    width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.15); }
+  input::placeholder { color: #5A7A6A; }
+  .btn {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--emerald) 100%);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 0.5rem;
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(212, 168, 67, 0.3); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .loading { display: none; text-align: center; padding: 2rem; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .results { display: none; }
+  .results.visible { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .address-block h2 { font-size: 1.25rem; font-weight: 700; }
+  .address-block .meta { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+  .estimate-card {
+    background: linear-gradient(135deg, var(--card) 0%, var(--bg-elevated) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  .estimate-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .estimate-value { font-size: clamp(2rem, 6vw, 3rem); font-weight: 800; color: var(--accent); margin: 0.5rem 0; }
+  .estimate-range { font-size: 1rem; color: var(--muted); }
+  .estimate-confidence { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.5rem 1rem; background: var(--bg); border-radius: 999px; font-size: 0.85rem; }
+  .confidence-bar { width: 100px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .confidence-fill { height: 100%; background: linear-gradient(90deg, var(--emerald) 0%, var(--accent) 100%); border-radius: 3px; transition: width 0.5s ease; }
+  .section { margin-top: 2rem; }
+  .section-title { display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent); }
+  .method-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .method-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .method-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .method-card.failed { opacity: 0.6; border-color: var(--error); }
+  .method-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+  .method-name { font-weight: 700; font-size: 0.95rem; }
+  .method-estimate { font-weight: 700; color: var(--accent); font-size: 1.1rem; }
+  .method-confidence { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--muted); margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+  .method-rationale { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-top: 0.75rem; }
+  .explanation { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap; color: var(--fg); }
+  .map-container { height: 300px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 1rem; }
+  .error-banner { background: rgba(229, 115, 115, 0.15); border: 1px solid var(--error); border-radius: 12px; padding: 1rem; color: var(--error); display: none; }
+  .error-banner.visible { display: block; }
+  .disclaimer { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .offline-badge { position: fixed; bottom: 1rem; right: 1rem; background: var(--accent); color: var(--bg); padding: 0.5rem 1rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; display: none; z-index: 200; }
+  .offline-badge.visible { display: block; }
+  @media (max-width: 480px) { .method-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="header-content">
+    <div class="logo">🏠</div>
+    <div>
+      <div class="app-title">Instant CMA</div>
+      <div class="app-subtitle">Boston Comparative Market Analysis</div>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="hero">
+    <h1>Instant Property Valuation</h1>
+    <p>Enter a Boston address to get a 10-method CMA with comps, confidence, and explanations — in seconds.</p>
+  </div>
+  <form class="search-form" id="searchForm">
+    <div class="input-group">
+      <label for="address">Property Address</label>
+      <input type="text" id="address" name="address" placeholder="e.g., 500 Commonwealth Ave, Boston, MA 02215" required autocomplete="street-address">
+    </div>
+    <button type="submit" class="btn" id="submitBtn">Generate CMA</button>
+  </form>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Geocoding address and running 10 valuation methods...</p>
+  </div>
+  <div class="error-banner" id="errorBanner"></div>
+  <div class="results" id="results"></div>
+</main>
+<div class="offline-badge" id="offlineBadge">Offline</div>
+<script>
+  const API_BASE = '/api/cma';
+  const form = document.getElementById('searchForm');
+  const loading = document.getElementById('loading');
+  const errorBanner = document.getElementById('errorBanner');
+  const results = document.getElementById('results');
+  const submitBtn = document.getElementById('submitBtn');
+  const offlineBadge = document.getElementById('offlineBadge');
+  
+  window.addEventListener('online', () => offlineBadge.classList.remove('visible'));
+  window.addEventListener('offline', () => offlineBadge.classList.add('visible'));
+  if (!navigator.onLine) offlineBadge.classList.add('visible');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const address = form.address.value.trim();
+    if (!address) return;
+    
+    errorBanner.classList.remove('visible');
+    results.classList.remove('visible');
+    loading.style.display = 'block';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Generating...';
+    
+    try {
+      const params = new URLSearchParams({ address });
+      const res = await fetch(`${API_BASE}?${params}`);
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.error || 'CMA generation failed');
+      
+      renderResults(data);
+    } catch (err) {
+      errorBanner.textContent = err.message;
+      errorBanner.classList.add('visible');
+    } finally {
+      loading.style.display = 'none';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Generate CMA';
+    }
+  });
+  
+  function renderResults(data) {
+    const { address, polygonId, coordinates, property, comps, methods, estimate, meta } = data;
+    
+    results.innerHTML = `
+      <div class="result-header">
+        <div class="address-block">
+          <h2>${escapeHtml(address)}</h2>
+          <div class="meta">
+            <span>${escapeHtml(polygonId)}</span>
+            <span>${coordinates.lat.toFixed(4)}, ${coordinates.lon.toFixed(4)}</span>
+            <span>${property.type} · ${property.sqft.toLocaleString()} sqft · ${property.beds}bd/${property.baths}ba</span>
+          </div>
+        </div>
+        <div class="estimate-card">
+          <div class="estimate-label">Estimated Value</div>
+          <div class="estimate-value">$${estimate.point.toLocaleString()}</div>
+          <div class="estimate-range">$${estimate.range.low.toLocaleString()} – $${estimate.range.high.toLocaleString()}</div>
+          <div class="estimate-confidence">
+            <span>Confidence</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width: ${Math.round(estimate.confidence * 100)}%"></div></div>
+            <span>${Math.round(estimate.confidence * 100)}%</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">📊 Valuation Methods</div>
+        <div class="method-grid">
+          ${Object.entries(methods).map(([key, m]) => `
+            <div class="method-card ${m.error ? 'failed' : ''}">
+              <div class="method-header">
+                <span class="method-name">${formatMethodName(key)}</span>
+                <span class="method-estimate">${m.error ? '—' : '$' + m.estimate.toLocaleString()}</span>
+              </div>
+              ${m.error ? `<div class="method-rationale" style="color: var(--error);">${escapeHtml(m.error)}</div>` : `
+                <div class="method-confidence">
+                  <span>Confidence: ${Math.round(m.confidence * 100)}%</span>
+                  <span>Comps: ${m.compsUsed}</span>
+                </div>
+                <div class="method-rationale">${escapeHtml(m.rationale)}</div>
+              `}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">🧠 Optimizer Explanation</div>
+        <div class="explanation">${escapeHtml(estimate.explanation)}</div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">🏘️ Comp Selection</div>
+        <div class="explanation">${escapeHtml(comps.explanation)}</div>
+      </div>
+      
+      <div class="disclaimer">
+        This is an automated estimate for informational purposes only. Not an appraisal. Consult a licensed appraiser or real estate professional for official valuations. Data sources: Mock data (demo), Census Geocoder, MassGIS BPDA neighborhoods.
+      </div>
+    `;
+    
+    results.classList.add('visible');
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  
+  function formatMethodName(key) {
+    return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c]));
+  }
+</script>
+</body>
+</html>

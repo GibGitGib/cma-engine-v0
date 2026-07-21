@@ -1,0 +1,11 @@
+{
+  "name": "cma-engine-v0",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step'",
+    "start": "vercel dev"
+  },
+  "dependencies": {}
+}
