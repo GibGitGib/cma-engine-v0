@@ -1,11 +1,11 @@
 // Vercel API endpoint for CMA generation
 // GET /api/cma?address=500+Commonwealth+Ave,+Boston,+MA+02215
 
-import { addressToSubjectProperty, geocodeCensus, resolvePolygonId } from '../../lib/geocode.js';
-import { selectComps } from '../../lib/comps.js';
-import { runOptimizer } from '../../lib/optimizer.js';
-import { getAllMethods } from '../../lib/methods/index.js';
-import { CompRecord, MarketContext } from '../../lib/types.js';
+import { addressToSubjectProperty, geocodeCensus, resolvePolygonId } from '../lib/geocode.js';
+import { selectComps } from '../lib/comps.js';
+import { runOptimizer } from '../lib/optimizer.js';
+import { getAllMethods } from '../lib/methods/index.js';
+import { CompRecord, MarketContext } from '../lib/types.js';
 
 const basePrices = {
   'back-bay': 1300000, 'beacon-hill': 1350000, 'south-end': 950000,
