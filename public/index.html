@@ -77,6 +77,44 @@
   .input-group { display: flex; flex-direction: column; gap: 0.5rem; }
   .input-row { display: flex; gap: 0.75rem; }
   @media (max-width: 480px) { .input-row { flex-direction: column; } }
+  .advanced-toggle {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .advanced-toggle:hover { color: var(--accent-dim); }
+  .advanced-panel {
+    display: none;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+  }
+  .advanced-panel.open { display: block; }
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
   label { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
   input, select {
     background: var(--bg);
@@ -173,6 +211,21 @@
   .disclaimer { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
   .offline-badge { position: fixed; bottom: 1rem; right: 1rem; background: var(--accent); color: var(--bg); padding: 0.5rem 1rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; display: none; z-index: 200; }
   .offline-badge.visible { display: block; }
+  .comps-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .comps-table th, .comps-table td { padding: 0.6rem 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+  .comps-table th { color: var(--muted); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .comps-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .comps-table tr:hover td { background: var(--bg-elevated); }
+  .comp-empty { padding: 2rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+  .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .actions .btn { width: auto; flex: 1; min-width: 140px; margin-top: 0; }
+  .map-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-top: 1rem; }
+  .map-svg { width: 100%; height: 240px; border-radius: 8px; background: var(--bg-elevated); }
+  .map-legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted); }
+  .map-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .data-source-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; }
+  .data-source-badge.live { background: var(--emerald); color: #06251a; }
+  .data-source-badge.mock { background: var(--border); color: var(--muted); }
   @media (max-width: 480px) { .method-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -196,6 +249,88 @@
       <label for="address">Property Address</label>
       <input type="text" id="address" name="address" placeholder="e.g., 500 Commonwealth Ave, Boston, MA 02215" required autocomplete="street-address">
     </div>
+
+    <button type="button" class="advanced-toggle" id="advancedToggle" aria-expanded="false">
+      <span id="advancedChevron">▸</span> Search options
+    </button>
+
+    <div class="advanced-panel" id="advancedPanel">
+      <div class="field-grid">
+        <div class="field">
+          <label for="neighborhood">Area</label>
+          <select id="neighborhood" name="neighborhood">
+            <option value="">Any Boston area</option>
+            <option value="back-bay">Back Bay</option>
+            <option value="beacon-hill">Beacon Hill</option>
+            <option value="south-end">South End</option>
+            <option value="fenway-kenmore">Fenway / Kenmore</option>
+            <option value="mission-hill">Mission Hill</option>
+            <option value="roxbury">Roxbury</option>
+            <option value="dorchester">Dorchester</option>
+            <option value="mattapan">Mattapan</option>
+            <option value="hyde-park">Hyde Park</option>
+            <option value="west-roxbury">West Roxbury</option>
+            <option value="roslindale">Roslindale</option>
+            <option value="jamaica-plain">Jamaica Plain</option>
+            <option value="brighton">Brighton</option>
+            <option value="allston">Allston</option>
+            <option value="charlestown">Charlestown</option>
+            <option value="east-boston">East Boston</option>
+            <option value="south-boston">South Boston</option>
+            <option value="downtown">Downtown</option>
+            <option value="north-end">North End</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="radius">Comp radius (mi)</label>
+          <select id="radius" name="radius">
+            <option value="0.25">0.25 mile</option>
+            <option value="0.5" selected>0.5 mile</option>
+            <option value="1">1 mile</option>
+            <option value="2">2 miles</option>
+            <option value="5">5 miles</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="propertyType">Property type</label>
+          <select id="propertyType" name="propertyType">
+            <option value="">Any</option>
+            <option value="Single Family">Single Family</option>
+            <option value="Condo">Condo</option>
+            <option value="Townhouse">Townhouse</option>
+            <option value="Multi Family">Multi Family</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="bedrooms">Beds</label>
+          <input type="number" id="bedrooms" name="bedrooms" min="0" max="10" step="1" placeholder="any">
+        </div>
+
+        <div class="field">
+          <label for="bathrooms">Baths</label>
+          <input type="number" id="bathrooms" name="bathrooms" min="0" max="10" step="0.5" placeholder="any">
+        </div>
+
+        <div class="field">
+          <label for="squareFootage">Sqft</label>
+          <input type="number" id="squareFootage" name="squareFootage" min="0" step="50" placeholder="any">
+        </div>
+
+        <div class="field">
+          <label for="saleDateRange">Sold within</label>
+          <select id="saleDateRange" name="saleDateRange">
+            <option value="90">3 months</option>
+            <option value="180" selected>6 months</option>
+            <option value="365">1 year</option>
+            <option value="730">2 years</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <button type="submit" class="btn" id="submitBtn">Generate CMA</button>
   </form>
   <div class="loading" id="loading">
@@ -214,29 +349,51 @@
   const results = document.getElementById('results');
   const submitBtn = document.getElementById('submitBtn');
   const offlineBadge = document.getElementById('offlineBadge');
-  
+  const advancedToggle = document.getElementById('advancedToggle');
+  const advancedPanel = document.getElementById('advancedPanel');
+  const advancedChevron = document.getElementById('advancedChevron');
+
+  // Toggle advanced search panel
+  advancedToggle.addEventListener('click', () => {
+    const open = advancedPanel.classList.toggle('open');
+    advancedChevron.textContent = open ? '▾' : '▸';
+    advancedToggle.setAttribute('aria-expanded', open);
+  });
+
   window.addEventListener('online', () => offlineBadge.classList.remove('visible'));
   window.addEventListener('offline', () => offlineBadge.classList.add('visible'));
   if (!navigator.onLine) offlineBadge.classList.add('visible');
-  
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const address = form.address.value.trim();
     if (!address) return;
-    
+
     errorBanner.classList.remove('visible');
     results.classList.remove('visible');
     loading.style.display = 'block';
     submitBtn.disabled = true;
     submitBtn.textContent = 'Generating...';
-    
+
+    // Build query from all form fields
+    const params = new URLSearchParams();
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      const v = el.value && el.value.trim ? el.value.trim() : '';
+      if (v && el.name !== 'address') params.set(el.name, v);
+    }
+    params.set('address', address);
+
+    // Stash for share link
+    window._lastCMAQuery = Object.fromEntries(params);
+
     try {
-      const params = new URLSearchParams({ address });
       const res = await fetch(`${API_BASE}?${params}`);
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.error || 'CMA generation failed');
-      
+
+      window._lastCMAData = data;
       renderResults(data);
     } catch (err) {
       errorBanner.textContent = err.message;
@@ -249,30 +406,90 @@
   });
   
   function renderResults(data) {
-    const { address, polygonId, coordinates, property, comps, methods, estimate, meta } = data;
-    
+    const { address, polygonId, coordinates, property, comps, methods, estimate, dataSource, meta } = data;
+
+    const isLive = dataSource === 'rentcast';
+    const badge = `<span class="data-source-badge ${isLive ? 'live' : 'mock'}">${isLive ? '● Live data' : '○ Mock data'}</span>`;
+
+    const compsList = (comps && comps.comps) || [];
+    const compsHTML = compsList.length > 0 ? `
+      <table class="comps-table">
+        <thead>
+          <tr>
+            <th>Address</th>
+            <th class="num">Sale Price</th>
+            <th class="num">$/sqft</th>
+            <th class="num">Beds</th>
+            <th class="num">Baths</th>
+            <th class="num">Sqft</th>
+            <th class="num">Sold</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${compsList.slice(0, 10).map(c => {
+            const sqft = c.sqft ? Number(c.sqft) : null;
+            const psf = (c.salePrice && sqft) ? Math.round(c.salePrice / sqft) : null;
+            const date = c.saleDate ? new Date(c.saleDate).toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
+            return `<tr>
+              <td>${escapeHtml(c.address || '—')}</td>
+              <td class="num">${c.salePrice ? '$' + Number(c.salePrice).toLocaleString() : '—'}</td>
+              <td class="num">${psf ? '$' + psf.toLocaleString() : '—'}</td>
+              <td class="num">${c.beds || '—'}</td>
+              <td class="num">${c.baths || '—'}</td>
+              <td class="num">${sqft ? sqft.toLocaleString() : '—'}</td>
+              <td class="num">${date}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    ` : `<div class="comp-empty">No comparable sales found in this area. Try a wider radius or different area.</div>`;
+
+    const mapHTML = renderMap(coordinates, compsList);
+
     results.innerHTML = `
       <div class="result-header">
         <div class="address-block">
-          <h2>${escapeHtml(address)}</h2>
+          <h2>${escapeHtml(address)} ${badge}</h2>
           <div class="meta">
-            <span>${escapeHtml(polygonId)}</span>
-            <span>${coordinates.lat.toFixed(4)}, ${coordinates.lon.toFixed(4)}</span>
-            <span>${property.type} · ${property.sqft.toLocaleString()} sqft · ${property.beds}bd/${property.baths}ba</span>
+            <span>${escapeHtml(polygonId || '—')}</span>
+            <span>${coordinates ? coordinates.lat.toFixed(4) + ', ' + coordinates.lon.toFixed(4) : '—'}</span>
+            <span>${property.type || '—'} · ${property.sqft ? property.sqft.toLocaleString() + ' sqft' : 'sqft unknown'} · ${property.beds || '?'}bd/${property.baths || '?'}ba</span>
           </div>
         </div>
         <div class="estimate-card">
           <div class="estimate-label">Estimated Value</div>
-          <div class="estimate-value">$${estimate.point.toLocaleString()}</div>
-          <div class="estimate-range">$${estimate.range.low.toLocaleString()} – $${estimate.range.high.toLocaleString()}</div>
+          <div class="estimate-value">$${(estimate.point || 0).toLocaleString()}</div>
+          <div class="estimate-range">$${(estimate.range?.low || 0).toLocaleString()} – $${(estimate.range?.high || 0).toLocaleString()}</div>
           <div class="estimate-confidence">
             <span>Confidence</span>
-            <div class="confidence-bar"><div class="confidence-fill" style="width: ${Math.round(estimate.confidence * 100)}%"></div></div>
-            <span>${Math.round(estimate.confidence * 100)}%</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width: ${Math.round((estimate.confidence || 0) * 100)}%"></div></div>
+            <span>${Math.round((estimate.confidence || 0) * 100)}%</span>
           </div>
         </div>
       </div>
-      
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="copyLinkBtn">Copy share link</button>
+        <button class="btn btn-secondary" id="downloadTxtBtn">Download as text</button>
+        <button class="btn btn-secondary" id="newSearchBtn">New search</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🏘️ Comparable Sales (${compsList.length})</div>
+        ${compsHTML}
+      </div>
+
+      <div class="section">
+        <div class="section-title">🗺️ Subject + Comps</div>
+        <div class="map-wrap">
+          ${mapHTML}
+          <div class="map-legend">
+            <span><span class="dot" style="background: var(--accent)"></span>Subject</span>
+            <span><span class="dot" style="background: var(--emerald)"></span>Comp</span>
+          </div>
+        </div>
+      </div>
+
       <div class="section">
         <div class="section-title">📊 Valuation Methods</div>
         <div class="method-grid">
@@ -280,39 +497,187 @@
             <div class="method-card ${m.error ? 'failed' : ''}">
               <div class="method-header">
                 <span class="method-name">${formatMethodName(key)}</span>
-                <span class="method-estimate">${m.error ? '—' : '$' + m.estimate.toLocaleString()}</span>
+                <span class="method-estimate">${m.error ? '—' : '$' + (m.estimate || 0).toLocaleString()}</span>
               </div>
               ${m.error ? `<div class="method-rationale" style="color: var(--error);">${escapeHtml(m.error)}</div>` : `
                 <div class="method-confidence">
-                  <span>Confidence: ${Math.round(m.confidence * 100)}%</span>
-                  <span>Comps: ${m.compsUsed}</span>
+                  <span>Confidence: ${Math.round((m.confidence || 0) * 100)}%</span>
+                  <span>Comps: ${m.compsUsed || 0}</span>
                 </div>
-                <div class="method-rationale">${escapeHtml(m.rationale)}</div>
+                <div class="method-rationale">${escapeHtml(m.rationale || '')}</div>
               `}
             </div>
           `).join('')}
         </div>
       </div>
-      
+
       <div class="section">
         <div class="section-title">🧠 Optimizer Explanation</div>
-        <div class="explanation">${escapeHtml(estimate.explanation)}</div>
+        <div class="explanation">${escapeHtml(estimate.explanation || '')}</div>
       </div>
-      
-      <div class="section">
-        <div class="section-title">🏘️ Comp Selection</div>
-        <div class="explanation">${escapeHtml(comps.explanation)}</div>
-      </div>
-      
+
       <div class="disclaimer">
-        This is an automated estimate for informational purposes only. Not an appraisal. Consult a licensed appraiser or real estate professional for official valuations. Data sources: Mock data (demo), Census Geocoder, MassGIS BPDA neighborhoods.
+        This is an automated estimate for informational purposes only. Not an appraisal. Consult a licensed appraiser or real estate professional for official valuations. Data sources: ${isLive ? 'RentCast API' : 'Mock data (demo)'} · Census Geocoder · MassGIS BPDA neighborhoods.
       </div>
     `;
-    
+
+    // Wire action buttons
+    document.getElementById('copyLinkBtn').addEventListener('click', copyShareLink);
+    document.getElementById('downloadTxtBtn').addEventListener('click', downloadAsText);
+    document.getElementById('newSearchBtn').addEventListener('click', () => {
+      results.classList.remove('visible');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
     results.classList.add('visible');
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  function renderMap(subjectCoord, compsList) {
+    // Build a list of all points: subject + comps
+    const allPoints = [];
+    if (subjectCoord && subjectCoord.lat) {
+      allPoints.push({ ...subjectCoord, type: 'subject' });
+    }
+    compsList.slice(0, 10).forEach(c => {
+      if (c.latitude && c.longitude) {
+        allPoints.push({ lat: c.latitude, lon: c.longitude, type: 'comp' });
+      }
+    });
+
+    if (allPoints.length === 0) {
+      return '<div class="comp-empty">No location data to display on map.</div>';
+    }
+
+    // Compute bounding box
+    const lats = allPoints.map(p => p.lat);
+    const lons = allPoints.map(p => p.lon);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const padLat = Math.max(0.01, (maxLat - minLat) * 0.2);
+    const padLon = Math.max(0.01, (maxLon - minLon) * 0.2);
+    const bounds = {
+      minLat: minLat - padLat, maxLat: maxLat + padLat,
+      minLon: minLon - padLon, maxLon: maxLon + padLon,
+    };
+
+    // Project lat/lon to SVG coords
+    const W = 600, H = 240, P = 20;
+    const project = (lat, lon) => {
+      const x = P + ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * (W - 2 * P);
+      const y = P + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * (H - 2 * P);
+      return { x, y };
+    };
+
+    // Build points
+    const subject = subjectCoord ? project(subjectCoord.lat, subjectCoord.lon) : null;
+    const compDots = compsList
+      .filter(c => c.latitude && c.longitude)
+      .map(c => project(c.latitude, c.longitude));
+
+    return `<svg class="map-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${W}" height="${H}" fill="transparent" />
+      <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 4"/>
+      <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 4"/>
+      ${compDots.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="var(--emerald)" opacity="0.7"><title>Comp</title></circle>`).join('')}
+      ${subject ? `<circle cx="${subject.x.toFixed(1)}" cy="${subject.y.toFixed(1)}" r="7" fill="var(--accent)" stroke="white" stroke-width="2"><title>Subject</title></circle>` : ''}
+    </svg>`;
+  }
+
+  function copyShareLink() {
+    if (!window._lastCMAQuery) return;
+    const params = new URLSearchParams(window._lastCMAQuery);
+    const url = `${window.location.origin}/?${params}`;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('copyLinkBtn');
+      const orig = btn.textContent;
+      btn.textContent = '✓ Link copied';
+      setTimeout(() => btn.textContent = orig, 2000);
+    }).catch(() => {
+      // Fallback: prompt
+      window.prompt('Copy this link:', url);
+    });
+  }
+
+  function downloadAsText() {
+    if (!window._lastCMAData) return;
+    const d = window._lastCMAData;
+    const lines = [];
+    lines.push('CMA REPORT');
+    lines.push('='.repeat(50));
+    lines.push(`Address: ${d.address}`);
+    lines.push(`Area: ${d.polygonId || '—'}`);
+    if (d.coordinates) lines.push(`Coords: ${d.coordinates.lat.toFixed(4)}, ${d.coordinates.lon.toFixed(4)}`);
+    if (d.property) {
+      lines.push(`Type: ${d.property.type || '—'}`);
+      lines.push(`Size: ${d.property.sqft || '—'} sqft · ${d.property.beds || '?'}bd / ${d.property.baths || '?'}ba`);
+      lines.push(`Year built: ${d.property.yearBuilt || '—'}`);
+    }
+    lines.push('');
+    lines.push('ESTIMATE');
+    lines.push('-'.repeat(50));
+    if (d.estimate) {
+      lines.push(`Point estimate: $${(d.estimate.point || 0).toLocaleString()}`);
+      lines.push(`Range: $${(d.estimate.range?.low || 0).toLocaleString()} – $${(d.estimate.range?.high || 0).toLocaleString()}`);
+      lines.push(`Confidence: ${Math.round((d.estimate.confidence || 0) * 100)}%`);
+    }
+    lines.push('');
+    lines.push(`COMPARABLE SALES (${d.comps?.selected || 0})`);
+    lines.push('-'.repeat(50));
+    const compsList = (d.comps && d.comps.comps) || [];
+    if (compsList.length === 0) {
+      lines.push('(no comps)');
+    } else {
+      compsList.forEach((c, i) => {
+        lines.push(`${i+1}. ${c.address || '—'} · $${(c.salePrice || 0).toLocaleString()} · ${c.beds || '?'}bd/${c.baths || '?'}ba · ${c.sqft || '?'} sqft · ${c.saleDate ? new Date(c.saleDate).toLocaleDateString() : '—'}`);
+      });
+    }
+    lines.push('');
+    lines.push('VALUATION METHODS');
+    lines.push('-'.repeat(50));
+    Object.entries(d.methods || {}).forEach(([k, m]) => {
+      lines.push(`${formatMethodName(k)}: $${(m.estimate || 0).toLocaleString()} (${Math.round((m.confidence || 0) * 100)}% confidence, ${m.compsUsed || 0} comps)`);
+      if (m.rationale) lines.push(`  ${m.rationale}`);
+    });
+    lines.push('');
+    lines.push('EXPLANATION');
+    lines.push('-'.repeat(50));
+    if (d.estimate?.explanation) lines.push(d.estimate.explanation);
+    lines.push('');
+    lines.push('---');
+    lines.push(`Data source: ${d.dataSource === 'rentcast' ? 'RentCast (live)' : 'Mock data'}`);
+    if (d.meta) lines.push(`Generated: ${d.meta.timestamp || '—'}`);
+    lines.push('This is an automated estimate, not an appraisal.');
+
+    const text = lines.join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cma-${(d.address || 'report').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
   
+  // Auto-fill form from URL query params (so shared links work)
+  (function hydrateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    let hasAny = false;
+    for (const [k, v] of params) {
+      const el = document.getElementById(k) || form.elements.namedItem(k);
+      if (el) {
+        el.value = v;
+        hasAny = true;
+      }
+    }
+    // If we have search params, auto-submit
+    if (hasAny && params.get('address')) {
+      form.requestSubmit();
+    }
+  })();
+
   function formatMethodName(key) {
     return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }

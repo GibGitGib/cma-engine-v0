@@ -42,6 +42,15 @@ export default async function handler(req, res) {
   const { address } = req.query;
   if (!address) return res.status(400).json({ error: 'Missing address parameter' });
 
+  // Optional search refinements (from frontend form)
+  const neighborhood = req.query.neighborhood || null;
+  const radius = req.query.radius ? Number(req.query.radius) : 1;
+  const propertyType = req.query.propertyType || null;
+  const beds = req.query.bedrooms ? Number(req.query.bedrooms) : undefined;
+  const baths = req.query.bathrooms ? Number(req.query.bathrooms) : undefined;
+  const sqft = req.query.squareFootage ? Number(req.query.squareFootage) : undefined;
+  const saleDateRange = req.query.saleDateRange ? Number(req.query.saleDateRange) : 180;
+
   // Surface env-misconfig early so users get a useful error
   if (!HAS_RENTCAST) {
     console.warn('[cma] RENTCAST_API_KEY not set — using mock comps only');
@@ -70,15 +79,15 @@ export default async function handler(req, res) {
           subject = { ...subjectFromRC, polygonId };
           dataSource = 'rentcast';
 
-          // Real sold comps within 1 mile
+          // Real sold comps using user-supplied filters
           const sold = await rentcast.getComparableSoldProperties({
             address,
-            radius: 1,
-            propertyType: realSubjectRecord.propertyType,
-            bedrooms: realSubjectRecord.bedrooms,
-            bathrooms: realSubjectRecord.bathrooms,
-            squareFootage: realSubjectRecord.squareFootage,
-            saleDateRange: 180,
+            radius,
+            propertyType: propertyType || realSubjectRecord.propertyType,
+            bedrooms: beds,
+            bathrooms: baths,
+            squareFootage: sqft,
+            saleDateRange,
             limit: 25,
           });
           realComps = (sold || []).map((r) => rentcast.rentcastToComp(r, address)).filter(Boolean);
