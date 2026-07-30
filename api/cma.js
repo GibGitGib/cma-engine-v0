@@ -6,6 +6,9 @@ import { selectComps } from '../lib/comps.js';
 import { runOptimizer } from '../lib/optimizer.js';
 import { getAllMethods } from '../lib/methods/index.js';
 import { CompRecord, MarketContext } from '../lib/types.js';
+import * as rentcast from '../lib/providers/rentcast.js';
+
+const HAS_RENTCAST = !!process.env.RENTCAST_API_KEY;
 
 const basePrices = {
   'back-bay': 1300000, 'beacon-hill': 1350000, 'south-end': 950000,
@@ -38,21 +41,73 @@ export default async function handler(req, res) {
   
   const { address } = req.query;
   if (!address) return res.status(400).json({ error: 'Missing address parameter' });
-  
+
+  // Surface env-misconfig early so users get a useful error
+  if (!HAS_RENTCAST) {
+    console.warn('[cma] RENTCAST_API_KEY not set — using mock comps only');
+  }
+
+  let subject;
+  let realComps = null;     // populated if RentCast is configured
+  let realSubjectRecord = null;
+  let dataSource = 'mock';
+
   try {
-    // 1. Geocode + resolve polygon
-    const subject = await addressToSubjectProperty(address, { geocoder: 'census' });
-    
-    // 2. Generate mock comps for this polygon
-    const comps = generateMockComps(subject);
-    
-    // 3. Select comps with min-5 rule
+    // 1. Try RentCast for real property data (address → full record + sold comps)
+    if (HAS_RENTCAST) {
+      try {
+        realSubjectRecord = await rentcast.getPropertyRecord(address);
+        if (realSubjectRecord) {
+          const subjectFromRC = rentcast.rentcastToSubject(realSubjectRecord);
+          // Resolve polygon (still need Census for that)
+          let polygonId = 'unknown';
+          if (realSubjectRecord.latitude && realSubjectRecord.longitude) {
+            polygonId = resolvePolygonId(
+              realSubjectRecord.latitude,
+              realSubjectRecord.longitude
+            );
+          }
+          subject = { ...subjectFromRC, polygonId };
+          dataSource = 'rentcast';
+
+          // Real sold comps within 1 mile
+          const sold = await rentcast.getComparableSoldProperties({
+            address,
+            radius: 1,
+            propertyType: realSubjectRecord.propertyType,
+            bedrooms: realSubjectRecord.bedrooms,
+            bathrooms: realSubjectRecord.bathrooms,
+            squareFootage: realSubjectRecord.squareFootage,
+            saleDateRange: 180,
+            limit: 25,
+          });
+          realComps = (sold || []).map((r) => rentcast.rentcastToComp(r, address)).filter(Boolean);
+        }
+      } catch (e) {
+        console.warn('[cma] RentCast lookup failed, falling back:', e.message);
+      }
+    }
+
+    // 2. Fall back to Census geocoder + mock property data
+    if (!subject) {
+      subject = await addressToSubjectProperty(address, { geocoder: 'census' });
+    }
+
+    // 3. Build comp set: real if we have it, else mock
+    const comps = realComps && realComps.length >= 5
+      ? realComps
+      : generateMockComps(subject);
+    if (realComps && realComps.length < 5) {
+      console.warn(`[cma] Only ${realComps.length} real comps — supplementing with mock`);
+    }
+
+    // 4. Select comps with min-5 rule
     const compSelection = selectComps(subject, comps, { minComps: 5, lookbackDays: 180 });
-    
-    // 4. Create market context
+
+    // 5. Create market context
     const marketData = createMarketData(subject.polygonId);
-    
-    // 5. Run all methods
+
+    // 6. Run all methods
     const methods = getAllMethods();
     const methodResults = {};
     for (const method of methods) {
@@ -63,11 +118,11 @@ export default async function handler(req, res) {
         methodResults[method.name] = { success: false, error: e.message, name: method.name };
       }
     }
-    
-    // 6. Run optimizer
+
+    // 7. Run optimizer
     const optimizerResult = runOptimizer(methodResults, subject, compSelection.comps, marketData);
-    
-    // 7. Build response
+
+    // 8. Build response
     return res.status(200).json({
       address: subject.address,
       polygonId: subject.polygonId,
@@ -82,6 +137,7 @@ export default async function handler(req, res) {
       },
       comps: {
         selected: compSelection.comps.length,
+        comps: compSelection.comps,           // include actual comps now
         explanation: compSelection.explanation.toString(),
       },
       methods: methodResults,
@@ -93,6 +149,7 @@ export default async function handler(req, res) {
         methodWeights: optimizerResult.methodWeights,
         ambiguity: optimizerResult.ambiguity,
       },
+      dataSource,                              // 'rentcast' or 'mock'
       meta: {
         timestamp: new Date().toISOString(),
         version: '0.1.0',
