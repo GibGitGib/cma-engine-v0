@@ -63,10 +63,55 @@
   main { flex: 1; padding: 1.5rem 1rem; max-width: 720px; margin: 0 auto; width: 100%; }
   .hero {
     text-align: center;
-    padding: 2rem 1rem;
+    padding: 2rem 1rem 0.5rem;
   }
   .hero h1 { font-size: clamp(1.75rem, 5vw, 2.5rem); font-weight: 800; line-height: 1.1; margin-bottom: 0.5rem; background: linear-gradient(90deg, var(--fg) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
   .hero p { color: var(--muted); font-size: 1.1rem; max-width: 480px; margin: 0 auto; }
+  .quick-start { margin: 1rem 0; }
+  .qs-label { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+  .qs-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+  .qs-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: var(--fg);
+    transition: all 0.15s ease;
+  }
+  .qs-card:hover { border-color: var(--accent); background: var(--bg-elevated); transform: translateY(-1px); }
+  .qs-card:active { transform: translateY(0); }
+  .qs-name { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.2rem; }
+  .qs-meta { font-size: 0.7rem; color: var(--muted); }
+  .qs-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-start; }
+  .qs-locate {
+    background: transparent;
+    color: var(--emerald);
+    border: 1px solid var(--emerald);
+    border-radius: 10px;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .qs-locate:hover { background: rgba(76, 175, 122, 0.1); }
+  .qs-recent-wrap { flex: 1; min-width: 0; }
+  .qs-recent { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .qs-recent-chip {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .qs-recent-chip:hover { color: var(--fg); border-color: var(--accent); }
   .search-form {
     background: var(--card);
     border: 1px solid var(--border);
@@ -244,17 +289,49 @@
     <h1>Instant Property Valuation</h1>
     <p>Enter a Boston address to get a 10-method CMA with comps, confidence, and explanations — in seconds.</p>
   </div>
+
+  <!-- Quick-start cards: tap an example or use your location -->
+  <div class="quick-start" id="quickStart">
+    <div class="qs-label">Try an example</div>
+    <div class="qs-cards" id="qsCards">
+      <button class="qs-card" data-address="500 Commonwealth Ave, Boston, MA 02215">
+        <div class="qs-name">500 Commonwealth Ave</div>
+        <div class="qs-meta">Fenway · Multi-family</div>
+      </button>
+      <button class="qs-card" data-address="1234 Beacon St, Brookline, MA 02446">
+        <div class="qs-name">1234 Beacon St</div>
+        <div class="qs-meta">Brookline · Condo</div>
+      </button>
+      <button class="qs-card" data-address="100 Beacon St, Boston, MA 02108">
+        <div class="qs-name">100 Beacon St</div>
+        <div class="qs-meta">Bay Village · Single Family</div>
+      </button>
+      <button class="qs-card" data-address="45 Province St, Boston, MA 02108">
+        <div class="qs-name">45 Province St</div>
+        <div class="qs-meta">Downtown · Condo</div>
+      </button>
+    </div>
+
+    <div class="qs-row">
+      <button class="qs-locate" id="locateBtn" type="button">📍 Use my location</button>
+      <div class="qs-recent-wrap" id="recentWrap" hidden>
+        <div class="qs-label">Recent</div>
+        <div class="qs-recent" id="recentList"></div>
+      </div>
+    </div>
+  </div>
+
   <form class="search-form" id="searchForm">
     <div class="input-group">
       <label for="address">Property Address</label>
       <input type="text" id="address" name="address" placeholder="e.g., 500 Commonwealth Ave, Boston, MA 02215" required autocomplete="street-address">
     </div>
 
-    <button type="button" class="advanced-toggle" id="advancedToggle" aria-expanded="false">
-      <span id="advancedChevron">▸</span> Search options
+    <button type="button" class="advanced-toggle" id="advancedToggle" aria-expanded="true">
+      <span id="advancedChevron">▾</span> Search options
     </button>
 
-    <div class="advanced-panel" id="advancedPanel">
+    <div class="advanced-panel open" id="advancedPanel">
       <div class="field-grid">
         <div class="field">
           <label for="neighborhood">Area</label>
@@ -360,6 +437,86 @@
     advancedToggle.setAttribute('aria-expanded', open);
   });
 
+  // Quick-start: example cards → fill address
+  document.querySelectorAll('.qs-card').forEach(card => {
+    card.addEventListener('click', () => {
+      form.address.value = card.dataset.address;
+      form.address.focus();
+      // Smooth scroll to the form
+      document.querySelector('.search-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  // Use my location → reverse geocode → fill address
+  document.getElementById('locateBtn').addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation not supported on this device');
+      return;
+    }
+    const btn = document.getElementById('locateBtn');
+    const orig = btn.textContent;
+    btn.textContent = '⏳ Locating...';
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        // Reverse geocode via Census (free, no key)
+        try {
+          const url = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${pos.coords.longitude}&y=${pos.coords.latitude}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+          const r = await fetch(url);
+          const d = await r.json();
+          const match = d.result?.geographies?.['2020 Census Blocks']?.[0];
+          const city = match?.BASENAME || '';
+          const state = match?.STATE_NAME || 'MA';
+          // Build a coarse address from lat/lon — RentCast/Census will refine
+          form.address.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}${city ? ' near ' + city + ', ' + state : ''}`;
+        } catch {
+          form.address.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+        }
+        btn.textContent = orig;
+        btn.disabled = false;
+        document.querySelector('.search-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+      (err) => {
+        btn.textContent = orig;
+        btn.disabled = false;
+        alert('Location access denied or unavailable');
+      },
+      { timeout: 10000 }
+    );
+  });
+
+  // Recent searches from localStorage
+  function loadRecent() {
+    try {
+      const recent = JSON.parse(localStorage.getItem('cma_recent') || '[]');
+      const wrap = document.getElementById('recentWrap');
+      const list = document.getElementById('recentList');
+      if (recent.length === 0) {
+        wrap.hidden = true;
+        return;
+      }
+      wrap.hidden = false;
+      list.innerHTML = recent.slice(0, 5).map(addr =>
+        `<button class="qs-recent-chip" data-address="${escapeHtml(addr)}">${escapeHtml(addr)}</button>`
+      ).join('');
+      list.querySelectorAll('.qs-recent-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          form.address.value = chip.dataset.address;
+          document.querySelector('.search-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    } catch {}
+  }
+  function saveRecent(address) {
+    try {
+      const recent = JSON.parse(localStorage.getItem('cma_recent') || '[]');
+      const updated = [address, ...recent.filter(a => a !== address)].slice(0, 10);
+      localStorage.setItem('cma_recent', JSON.stringify(updated));
+      loadRecent();
+    } catch {}
+  }
+  loadRecent();
+
   window.addEventListener('online', () => offlineBadge.classList.remove('visible'));
   window.addEventListener('offline', () => offlineBadge.classList.add('visible'));
   if (!navigator.onLine) offlineBadge.classList.add('visible');
@@ -394,6 +551,7 @@
       if (!res.ok) throw new Error(data.error || 'CMA generation failed');
 
       window._lastCMAData = data;
+      saveRecent(address);
       renderResults(data);
     } catch (err) {
       errorBanner.textContent = err.message;
