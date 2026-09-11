@@ -1,11 +1,17 @@
 {
   "name": "cma-engine-v0",
   "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'No build step'",
-    "start": "vercel dev"
+  "type": "module",
+  "main": "agent-cli.js",
+  "bin": {
+    "agent-cli": "./agent-cli.js"
   },
-  "dependencies": {}
+  "scripts": {
+    "test": "node --experimental-specifier-resolution=node test-runner.mjs",
+    "cma": "node --experimental-specifier-resolution=node agent-cli.js --role cma --address"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {}
 }
