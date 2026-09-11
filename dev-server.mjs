@@ -84,8 +84,19 @@ const server = http.createServer(async (req, res) => {
     '.js': 'application/javascript',
     '.css': 'text/css',
     '.json': 'application/json',
+    // PWA assets: a PNG or manifest served as text/plain is rejected by the
+    // browser, which silently breaks icons and installability in local dev.
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.webmanifest': 'application/manifest+json',
   };
   res.setHeader('Content-Type', mimeTypes[ext] || 'text/plain');
+  // The service worker must not be cached, or updates never reach clients.
+  if (filePath.endsWith('sw.js')) {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Service-Worker-Allowed', '/');
+  }
   res.end(content);
 });
 
