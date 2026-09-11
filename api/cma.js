@@ -1,10 +1,10 @@
 // Vercel API endpoint for CMA generation
 // GET /api/cma?address=500+Commonwealth+Ave,+Boston,+MA+02215
 
-import { addressToSubjectProperty, geocodeCensus, resolvePolygonId } from '../lib/geocode.js';
+import { addressToSubjectProperty, coordsToSubjectProperty, geocodeCensus, resolvePolygonId } from '../lib/geocode.js';
 import { selectComps } from '../lib/comps.js';
 import { runOptimizer } from '../lib/optimizer.js';
-import { getAllMethods } from '../lib/methods/index.js';
+import { METHOD_ORDER, METHOD_REGISTRY } from '../lib/methods/index.js';
 import { CompRecord, MarketContext } from '../lib/types.js';
 import * as rentcast from '../lib/providers/rentcast.js';
 
@@ -40,7 +40,15 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   
   const { address } = req.query;
-  if (!address) return res.status(400).json({ error: 'Missing address parameter' });
+  // "Use my location" sends exact coords; resolvePolygonId() consumes lat/lon
+  // directly, so no geocoding is needed (and a coord string as `address` would
+  // fail every geocoder).
+  const lat = req.query.lat !== undefined ? Number(req.query.lat) : NaN;
+  const lon = req.query.lon !== undefined ? Number(req.query.lon) : NaN;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  if (!address && !hasCoords) {
+    return res.status(400).json({ error: 'Provide an address, or lat and lon' });
+  }
 
   // Optional search refinements (from frontend form)
   const neighborhood = req.query.neighborhood || null;
@@ -63,7 +71,7 @@ export default async function handler(req, res) {
 
   try {
     // 1. Try RentCast for real property data (address → full record + sold comps)
-    if (HAS_RENTCAST) {
+    if (HAS_RENTCAST && address) {
       try {
         realSubjectRecord = await rentcast.getPropertyRecord(address);
         if (realSubjectRecord) {
@@ -90,24 +98,37 @@ export default async function handler(req, res) {
             saleDateRange,
             limit: 25,
           });
-          realComps = (sold || []).map((r) => rentcast.rentcastToComp(r, address)).filter(Boolean);
+          realComps = (sold || [])
+            .map((r) => rentcast.rentcastToComp(r))
+            .filter(Boolean)
+            .map((c) => {
+              // Resolve each comp's micro-market so selectComps() can match on polygon.
+              if (c.latitude && c.longitude) {
+                c.polygonId = resolvePolygonId(c.latitude, c.longitude);
+              }
+              return c;
+            });
         }
       } catch (e) {
         console.warn('[cma] RentCast lookup failed, falling back:', e.message);
       }
     }
 
-    // 2. Fall back to Census geocoder + mock property data
+    // 2. Fall back: coords need no geocoding; otherwise Census-geocode the address.
     if (!subject) {
-      subject = await addressToSubjectProperty(address, { geocoder: 'census' });
+      subject = hasCoords
+        ? coordsToSubjectProperty(lat, lon, { formattedAddress: address || undefined })
+        : await addressToSubjectProperty(address, { geocoder: 'census' });
     }
 
-    // 3. Build comp set: real if we have it, else mock
-    const comps = realComps && realComps.length >= 5
-      ? realComps
-      : generateMockComps(subject);
-    if (realComps && realComps.length < 5) {
-      console.warn(`[cma] Only ${realComps.length} real comps — supplementing with mock`);
+    // 3. Build comp set: use real comps whenever we have ANY. Never pad with mock
+    //    (the min-5 rule returns a thin set + explanation instead). Mock is used
+    //    only when there are zero real comps (e.g. RentCast off or no match).
+    const haveRealComps = realComps && realComps.length > 0;
+    const comps = haveRealComps ? realComps : generateMockComps(subject);
+    const compsSource = haveRealComps ? 'rentcast' : 'mock';
+    if (haveRealComps && realComps.length < 5) {
+      console.warn(`[cma] Only ${realComps.length} real comps — returning them with a thin-market explanation (no padding)`);
     }
 
     // 4. Select comps with min-5 rule
@@ -116,15 +137,22 @@ export default async function handler(req, res) {
     // 5. Create market context
     const marketData = createMarketData(subject.polygonId);
 
-    // 6. Run all methods
-    const methods = getAllMethods();
+    // 6. Run all methods, keyed by REGISTRY name (snake_case).
+    //    The optimizer looks methods up by these names for its applicability
+    //    gate and historical weights; keying by function.name (camelCase) made
+    //    every one of those lookups miss, silently reducing the ensemble to a
+    //    flat average with all gates disabled.
     const methodResults = {};
-    for (const method of methods) {
+    for (const name of METHOD_ORDER) {
+      const method = METHOD_REGISTRY[name];
       try {
         const result = method(subject, compSelection.comps, marketData);
-        methodResults[method.name] = result;
+        // MethodResult.failure() doesn't carry a method name — stamp it so
+        // failed methods remain identifiable in the response.
+        if (result && !result.method) result.method = name;
+        methodResults[name] = result;
       } catch (e) {
-        methodResults[method.name] = { success: false, error: e.message, name: method.name };
+        methodResults[name] = { success: false, error: e.message, method: name };
       }
     }
 
@@ -148,6 +176,7 @@ export default async function handler(req, res) {
         selected: compSelection.comps.length,
         comps: compSelection.comps,           // include actual comps now
         explanation: compSelection.explanation.toString(),
+        source: compsSource,                  // 'rentcast' or 'mock' — what the comps actually are
       },
       methods: methodResults,
       estimate: {
@@ -158,7 +187,8 @@ export default async function handler(req, res) {
         methodWeights: optimizerResult.methodWeights,
         ambiguity: optimizerResult.ambiguity,
       },
-      dataSource,                              // 'rentcast' or 'mock'
+      dataSource: compsSource,                 // overall: 'rentcast' only when the estimate is built on real comps
+      subjectSource: dataSource,               // where the subject record itself came from
       meta: {
         timestamp: new Date().toISOString(),
         version: '0.1.0',
@@ -173,21 +203,31 @@ export default async function handler(req, res) {
 function generateMockComps(subject) {
   const basePrice = basePrices[subject.polygonId] || 700000;
   const street = streetNames[subject.polygonId] || streetNames.default;
+  // Subjects sourced from RentCast can carry null attributes; fall back to sane
+  // defaults so mock comps never come out as NaN.
+  const sqftBase = subject.sqft || 1500;
+  const bedsBase = subject.beds || 3;
+  const bathsBase = subject.baths || 2;
+  const condBase = subject.condition || 3;
+  const yearBase = subject.yearBuilt || 1950;
+  const lotBase = subject.lotSqft || 2500;
+  const latBase = subject.latitude || 42.3601;   // Boston fallback
+  const lonBase = subject.longitude || -71.0589;
   const comps = [];
   const now = new Date();
-  
+
   for (let i = 1; i <= 8; i++) {
     const variation = 0.85 + Math.random() * 0.3; // 85-115%
     const salePrice = Math.round(basePrice * variation);
     const daysAgo = 15 + Math.floor(Math.random() * 150);
     const saleDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-    
+
     const sqftVariation = 0.85 + Math.random() * 0.3;
-    const sqft = Math.round(subject.sqft * sqftVariation);
-    
+    const sqft = Math.round(sqftBase * sqftVariation);
+
     const latOffset = (Math.random() - 0.5) * 0.01;
     const lonOffset = (Math.random() - 0.5) * 0.01;
-    
+
     comps.push(new CompRecord({
       id: `comp-${i}`,
       address: `${100 + i * 5} ${street}, Boston, MA`,
@@ -195,15 +235,15 @@ function generateMockComps(subject) {
       propertyType: subject.propertyType,
       status: 'sold',
       sqft,
-      beds: Math.max(1, subject.beds + Math.floor(Math.random() * 3) - 1),
-      baths: Math.max(1, subject.baths + (Math.random() - 0.5)),
-      yearBuilt: subject.yearBuilt + Math.floor(Math.random() * 20) - 10,
-      condition: Math.max(1, Math.min(5, subject.condition + Math.floor(Math.random() * 3) - 1)),
-      lotSqft: subject.lotSqft || 2500,
+      beds: Math.max(1, bedsBase + Math.floor(Math.random() * 3) - 1),
+      baths: Math.max(1, bathsBase + (Math.random() - 0.5)),
+      yearBuilt: yearBase + Math.floor(Math.random() * 20) - 10,
+      condition: Math.max(1, Math.min(5, condBase + Math.floor(Math.random() * 3) - 1)),
+      lotSqft: lotBase,
       salePrice,
       saleDate: saleDate.toISOString(),
-      latitude: subject.latitude + latOffset,
-      longitude: subject.longitude + lonOffset,
+      latitude: latBase + latOffset,
+      longitude: lonBase + lonOffset,
       source: 'mock',
     }));
   }
