@@ -6,7 +6,13 @@
 <meta name="description" content="Instant CMA - Boston Comparative Market Analysis">
 <meta name="theme-color" content="#0B1A12">
 <title>Instant CMA | Boston Property Valuation</title>
-<link rel="manifest" href="data:application/json,{%22name%22:%22Instant%20CMA%22,%22short_name%22:%22CMA%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230B1A12%22,%22theme_color%22:%22%230B1A12%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230B1A12' width='100' height='100' rx='20'/%3E<text x='50' y='68' font-size='50' text-anchor='middle' fill='%23D4A843'>🏠</text></svg>%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Instant CMA">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root {
     --bg: #0B1A12;
@@ -467,10 +473,13 @@
           const match = d.result?.geographies?.['2020 Census Blocks']?.[0];
           const city = match?.BASENAME || '';
           const state = match?.STATE_NAME || 'MA';
-          // Build a coarse address from lat/lon — RentCast/Census will refine
-          form.address.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}${city ? ' near ' + city + ', ' + state : ''}`;
+          // Send exact coords to the API; the address field is only a label.
+          // (A coord string as `address` fails every geocoder -> 500.)
+          window._cmaCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          form.address.value = city ? `Near ${city}, ${state}` : 'My current location';
         } catch {
-          form.address.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+          window._cmaCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          form.address.value = 'My current location';
         }
         btn.textContent = orig;
         btn.disabled = false;
@@ -521,10 +530,24 @@
   window.addEventListener('offline', () => offlineBadge.classList.add('visible'));
   if (!navigator.onLine) offlineBadge.classList.add('visible');
 
+  // Service worker: enables installability and the offline CMA cache.
+  // Registered after load so it never competes with first paint.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('[pwa] service worker registration failed:', err);
+      });
+    });
+  }
+
+  // A manually typed address supersedes any previously captured coordinates.
+  form.address.addEventListener('input', () => { window._cmaCoords = null; });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const address = form.address.value.trim();
-    if (!address) return;
+    const coords = window._cmaCoords || null;
+    if (!address && !coords) return;
 
     errorBanner.classList.remove('visible');
     results.classList.remove('visible');
@@ -539,7 +562,11 @@
       const v = el.value && el.value.trim ? el.value.trim() : '';
       if (v && el.name !== 'address') params.set(el.name, v);
     }
-    params.set('address', address);
+    if (address) params.set('address', address);
+    if (coords) {
+      params.set('lat', coords.lat);
+      params.set('lon', coords.lon);
+    }
 
     // Stash for share link
     window._lastCMAQuery = Object.fromEntries(params);
@@ -550,8 +577,12 @@
 
       if (!res.ok) throw new Error(data.error || 'CMA generation failed');
 
+      // The service worker marks results replayed from cache while offline, so
+      // an agent is never shown stale figures without knowing it.
+      data._servedOffline = res.headers.get('X-CMA-Offline') === '1';
+
       window._lastCMAData = data;
-      saveRecent(address);
+      saveRecent(address || 'My current location');
       renderResults(data);
     } catch (err) {
       errorBanner.textContent = err.message;
@@ -567,7 +598,10 @@
     const { address, polygonId, coordinates, property, comps, methods, estimate, dataSource, meta } = data;
 
     const isLive = dataSource === 'rentcast';
-    const badge = `<span class="data-source-badge ${isLive ? 'live' : 'mock'}">${isLive ? '● Live data' : '○ Mock data'}</span>`;
+    const badge = `<span class="data-source-badge ${isLive ? 'live' : 'mock'}">${isLive ? '● Live data' : '○ Mock data'}</span>`
+      + (data._servedOffline
+        ? ` <span class="data-source-badge mock" title="Replayed from your device while offline — re-run when you have signal to refresh.">⚡ Offline copy${meta?.timestamp ? ' · ' + new Date(meta.timestamp).toLocaleDateString() : ''}</span>`
+        : '');
 
     const compsList = (comps && comps.comps) || [];
     const compsHTML = compsList.length > 0 ? `
@@ -842,7 +876,9 @@
   
   function escapeHtml(str) {
     if (!str) return '';
-    return String(str).replace(/[&<>"']/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c]));
+    return String(str).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
   }
 </script>
 </body>
